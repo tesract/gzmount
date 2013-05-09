@@ -18,7 +18,7 @@
 #include <fuse.h>
 #include <zlib.h>
 
-static char *file_name;
+static char* filename;
 static char *dd_path; // = "/dd";
 static unsigned long file_size;
 
@@ -65,11 +65,25 @@ static int vdifs_open(const char *path, struct fuse_file_info *fi)
 
 	if((fi->flags & 3) != O_RDONLY) return -EACCES;
 
-	gzFile file = gzopen(file_name, "r");
+	gzFile file = gzopen(filename, "r");
 
 	if (file==NULL) return -EBADF;
 
 	fi->fh = (uint64_t)file;
+
+	return 0;
+}
+
+static int vdifs_release(const char * path, struct fuse_file_info *fi)
+{
+	if(strcmp(path, dd_path) != 0)
+		return -ENOENT;
+
+	gzFile file = (gzFile)fi->fh;
+
+	gzclose(file);
+
+	fi->fh=NULL;
 
 	return 0;
 }
@@ -88,7 +102,8 @@ static struct fuse_operations vdifs_op = {
 	.getattr	= vdifs_getattr,
 	.readdir	= vdifs_readdir,
 	.open	= vdifs_open,
-	.read	= vdifs_read
+	.read	= vdifs_read,
+	.release = vdifs_release
 };
 
 void usage( char *argv[])
@@ -97,6 +112,61 @@ void usage( char *argv[])
 	printf("%s <filename> <directory>\n", argv[0]);
 }
 
+//this function leaks the return callee must clean it up
+char *get_full_path(char *filename)
+{
+	char *linkname;
+	char link[32];
+	struct stat sb;
+	FILE* f;
+	ssize_t r;
+
+	//open file to create /proc/self/fd/###
+	f = fopen(filename, "r");
+
+	//create a string "/proc/self/fd/###"
+	snprintf(link, 32, "/proc/self/fd/%i", fileno(f));
+
+	//find out how long the filename that /proc/self/fd/### points to is
+	if (lstat(link, &sb) == -1) 
+	{
+		perror("lstat");
+		exit(EXIT_FAILURE);
+    	}
+	
+	//create space for the filename
+	linkname = malloc(sb.st_size + 1);
+
+	//make sure the space was created
+	if (linkname == NULL) {
+		fprintf(stderr, "insufficient memory\n");
+		exit(EXIT_FAILURE);
+	}
+
+	//read the filename
+	r = readlink(link, linkname, sb.st_size + 1);
+
+	//did we really read the file name?
+	if (r < 0) {
+	        perror("lstat");
+	        exit(EXIT_FAILURE);
+    	}
+
+	//make sure the file didn't change under us.... why should this ever happen we own the fd?
+	if (r > sb.st_size) {
+		fprintf(stderr, "symlink increased in size "
+		"between lstat() and readlink()\n");
+		exit(EXIT_FAILURE);
+	}
+
+	//make sure to null terminate
+	linkname[sb.st_size] = '\0';
+
+	//close the fd since we have the file name already
+	fclose(f);
+
+	return linkname;
+}
 
 int main(int argc, char *argv[])
 {
@@ -106,44 +176,34 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-	// dd_path = argv[1].substring(-3)
+	// dd_path = "/" + argv[1].substring(-3)
 	//go in reverse to find the last instance of /
 	{
 		int len = strlen(argv[1]);
 
-		int start;
-		for(start=len; start>=0; start--)
+		int start=0;
+		int end=len;
+		int i;
+		for(i=0; i<len; i++)
 		{
-			if (argv[1][start]=='/') break;
+			if (argv[1][i]=='/') start=i;
+			else if (argv[1][i]=='.') end=i;
 		}
-
-		if (argv[1][start]=='/') start++;
-
-		len-=start;
-	
-
-		dd_path = malloc(len);
-		bzero(dd_path, len);
-		dd_path[0]='/';
-		strncpy(dd_path+1, argv[1]+start, len-3);
+		
+		int len2=end-start+2;
+		dd_path = malloc(len2);
+		bzero(dd_path, len2);
+		
+		snprintf(dd_path, len2, "/%s", argv[1]+start);
 	}
 	printf("dd_path= %s\n", dd_path);
-
-	// file_name = argv[1]
-	int len = strlen(argv[1]);
-	file_name=malloc(len+1);
-	file_name[len]=0;
-	strncpy(file_name, argv[1], len);
-	printf("file_name= %s\n", file_name);
-
-
 
 	gzFile vdi_file;
 	vdi_file = gzopen(argv[1], "r");
 
 	if (vdi_file==NULL)
 	{
-		printf("Error opening: %s\n", argv[1]);
+		printf("Error(%i) opening: %s for gzip\n", errno, argv[1]);
 		return -1;
 	}
 
@@ -159,7 +219,10 @@ int main(int argc, char *argv[])
 
 	vdi_file=NULL;
 
-	printf("size = %lu \n", file_size);	
+	printf("size = %lu \n", file_size);
+
+	filename = get_full_path(argv[1]);
+	printf("filename = %s \n", filename);
 
 	return fuse_main(argc-1, argv+1, &vdifs_op);
 }

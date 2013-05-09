@@ -13,12 +13,12 @@ gzmount: $(OBJS)
 #	gcc -g -Wall -O0 -lfuse -D_FILE_OFFSET_BITS=64 vdifs.c -o vdifs
 
 test: gzmount unmount
-	./gzmount "${PWD}/1.gz" test
+	./gzmount 1.gz test
 	cat test/1
 	
 clean: unmount
 	rm -f gzmount $(OBJS) *~
 
 unmount:
-	if [ -e test/1 ]; then fusermount -u test; fi
+	fusermount -u test || true
 
