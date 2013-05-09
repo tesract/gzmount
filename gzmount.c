@@ -196,7 +196,7 @@ int main(int argc, char *argv[])
 		
 		snprintf(dd_path, len2, "/%s", argv[1]+start);
 	}
-	printf("dd_path= %s\n", dd_path);
+	//printf("dd_path= %s\n", dd_path);
 
 	gzFile vdi_file;
 	vdi_file = gzopen(argv[1], "r");
@@ -219,10 +219,10 @@ int main(int argc, char *argv[])
 
 	vdi_file=NULL;
 
-	printf("size = %lu \n", file_size);
+	//printf("size = %lu \n", file_size);
 
 	filename = get_full_path(argv[1]);
-	printf("filename = %s \n", filename);
+	//printf("filename = %s \n", filename);
 
 	return fuse_main(argc-1, argv+1, &vdifs_op);
 }
