@@ -186,7 +186,7 @@ int main(int argc, char *argv[])
 		int i;
 		for(i=0; i<len; i++)
 		{
-			if (argv[1][i]=='/') start=i;
+			if (argv[1][i]=='/') start=i+1;
 			else if (argv[1][i]=='.') end=i;
 		}
 		
