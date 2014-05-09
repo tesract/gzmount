@@ -83,7 +83,7 @@ static int vdifs_release(const char * path, struct fuse_file_info *fi)
 
 	gzclose(file);
 
-	fi->fh=NULL;
+	fi->fh=(uint64_t)NULL;
 
 	return 0;
 }
