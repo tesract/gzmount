@@ -218,8 +218,9 @@ int main(int argc, char *argv[])
 	gzclose(vdi_file);
 
 	vdi_file=NULL;
+	free(buf);
 
-	//printf("size = %lu \n", file_size);
+	printf("size = %lu \n", file_size);
 
 	filename = get_full_path(argv[1]);
 	//printf("filename = %s \n", filename);
