@@ -1,3 +1,10 @@
+#Temporary files
+*~
+
+#Test Files
+1.gz
+test
+
 # Object files
 *.o
 
@@ -15,3 +22,4 @@
 *.exe
 *.out
 *.app
+gzmount
